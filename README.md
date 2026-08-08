@@ -17,7 +17,7 @@ bash install.sh "/你的/Obsidian/vault"
 vault 路径必须由安装命令传入，安装器不会写死路径。它会：
 
 1. 把规范化后的 vault 绝对路径写入 `~/.lifeforce-vault`。
-2. 安装 `.lifeforce/skill`、`reindex.py`、`session-start.sh` 和 `capture.sh`。
+2. 安装 `.lifeforce/skill`、`reindex.py`、`session-start.sh`、`capture.sh` 和 Codex 历史指针脚本。
 3. 创建 `projects/` 并重建初始 `MAP.md`。
 4. 把 skill 链接到 `~/.claude/skills/lifeforce`、`~/.codex/skills/lifeforce` 和 `~/.gemini/skills/lifeforce`。
 5. 默认向 `~/.claude/settings.json` 幂等追加 SessionStart 和 Stop hook。
@@ -48,6 +48,17 @@ bash install.sh "/你的/Obsidian/vault" --no-claude-hooks
 ```
 
 安装了 Claude hooks 后，SessionStart 会自动输出 `MAP.md`、匹配到的项目 `_index.md` 和待沉淀数量；Stop hook 只追加 cwd、session id、transcript 路径等指针，不会自动生成低价值笔记。完成有价值的工作后仍建议显式执行 `/lifeforce save`。
+
+### 归档 Codex 历史会话
+
+Codex 的本地 transcript 在 `~/.codex/sessions/`，与 Claude 的 `~/.claude/projects/` 不是同一种存储。当前版本没有给 Codex 自动追加 Stop hook，因此批量处理历史会话时先用只读脚本列出目标工作目录的 session 指针：
+
+```bash
+V="$(cat ~/.lifeforce-vault)"
+python3 "$V/.lifeforce/codex-sessions.py" "/path/to/project"
+```
+
+脚本只输出时间、session id、cwd、来源和 transcript 路径，不打印会话正文。由 AI 按需读取相关 transcript，按 `/lifeforce save` 的规则合并到现有笔记，排除密码、token、cookie、个人查询和一次性业务数据，最后运行 `reindex.py`。这条路径与 Claude 的自动 hook 是两种入口，但落到同一个 vault。
 
 ## 在其他项目中使用
 
@@ -88,6 +99,7 @@ vault/
     ├── reindex.py
     ├── session-start.sh
     ├── capture.sh
+    ├── codex-sessions.py
     └── inbox.jsonl                # append-only session 指针
 ```
 
@@ -124,6 +136,7 @@ skill/agents/openai.yaml          # Codex UI 元数据
 scripts/reindex.py                # vault 运行时脚本
 scripts/session-start.sh          # Claude SessionStart hook
 scripts/capture.sh                # Claude Stop hook
+scripts/codex-sessions.py         # 列出 Codex 历史 session 指针
 scripts/configure_claude_hooks.py # 幂等合并 settings.json
 install.sh                        # 安装入口
 ```

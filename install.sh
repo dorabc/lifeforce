@@ -49,7 +49,7 @@ if [ ! -d "$VAULT_ARG" ]; then
 fi
 VAULT="$(cd -- "$VAULT_ARG" && pwd -P)"
 
-for required in "$REPO_DIR/skill/SKILL.md" "$REPO_DIR/scripts/reindex.py" "$REPO_DIR/scripts/capture.sh" "$REPO_DIR/scripts/session-start.sh"; do
+for required in "$REPO_DIR/skill/SKILL.md" "$REPO_DIR/scripts/reindex.py" "$REPO_DIR/scripts/capture.sh" "$REPO_DIR/scripts/session-start.sh" "$REPO_DIR/scripts/codex-sessions.py"; do
   if [ ! -f "$required" ]; then
     echo "安装包缺少文件：$required" >&2
     exit 1
@@ -63,7 +63,8 @@ cp -R "$REPO_DIR/skill/." "$SKILL_DIR/"
 cp "$REPO_DIR/scripts/reindex.py" "$RUNTIME/reindex.py"
 cp "$REPO_DIR/scripts/capture.sh" "$RUNTIME/capture.sh"
 cp "$REPO_DIR/scripts/session-start.sh" "$RUNTIME/session-start.sh"
-chmod +x "$RUNTIME/reindex.py" "$RUNTIME/capture.sh" "$RUNTIME/session-start.sh"
+cp "$REPO_DIR/scripts/codex-sessions.py" "$RUNTIME/codex-sessions.py"
+chmod +x "$RUNTIME/reindex.py" "$RUNTIME/capture.sh" "$RUNTIME/session-start.sh" "$RUNTIME/codex-sessions.py"
 
 ORIGINAL_UMASK="$(umask)"
 umask 077

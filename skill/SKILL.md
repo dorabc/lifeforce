@@ -36,6 +36,7 @@ $V/
     ├── reindex.py                  # 从叶子笔记重建索引
     ├── session-start.sh            # Claude SessionStart hook
     ├── capture.sh                  # Claude Stop hook
+    ├── codex-sessions.py           # Codex 历史 session 指针脚本
     └── inbox.jsonl                  # 只存 session 指针，append-only
 ```
 
@@ -140,6 +141,7 @@ hits: 0
 
 - **Claude Code**：安装器会把 skill 链接到 `~/.claude/skills/lifeforce`，并默认追加 SessionStart/Stop hook。可直接说 `/lifeforce`、`/lifeforce find 关键词`、`/lifeforce save` 或 `/lifeforce daily`。
 - **Codex**：安装器链接到 `~/.codex/skills/lifeforce`。可显式说“使用 lifeforce 查一下历史经验”或调用 `$lifeforce`；需要自动入口时，在项目的 `AGENTS.md` 加一行“开始任务前使用 `$lifeforce` 加载相关经验，完成后按需 `$lifeforce save`”。
+- **Codex 历史会话**：Codex transcript 通常在 `~/.codex/sessions/`，不是 Claude 的项目目录。批量处理某个项目时先运行 `python3 "$V/.lifeforce/codex-sessions.py" "/path/to/project"`；它只列出 session 指针，不打印正文。按需读取相关 transcript，去重后执行 `/lifeforce save`，不要把原始 transcript 复制到 vault。
 - **Gemini CLI**：安装器链接到 `~/.gemini/skills/lifeforce`；在 `GEMINI.md` 加同样的入口说明即可。没有 hook 的环境不能承诺 session 自动执行。
 - **Grok 或网页端**：没有统一的本地 skill/hook 目录，复制本文件内容或让其按 README 的动作流程操作；仍然可以共用同一个 vault。
 
