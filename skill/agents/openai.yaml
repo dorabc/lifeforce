@@ -1,0 +1,6 @@
+interface:
+  display_name: "Lifeforce"
+  short_description: "跨 AI 管理项目经验：自动索引、检索、复用知识与沉淀"
+  default_prompt: "Use $lifeforce to load relevant project history before this task and save reusable conclusions when done."
+policy:
+  allow_implicit_invocation: true
