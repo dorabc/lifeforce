@@ -9,7 +9,7 @@ usage() {
 
 安装内容：
   - 把 vault 路径写入 ~/.lifeforce-vault
-  - 安装 .lifeforce/skill、reindex.py 和两个 Claude hook
+  - 安装 .lifeforce/skill、reindex.py、两个 Claude hook 和 Codex 历史指针脚本
   - 链接到 ~/.claude/skills、~/.codex/skills、~/.gemini/skills
   - 默认幂等追加 Claude SessionStart/Stop hook
 EOF
