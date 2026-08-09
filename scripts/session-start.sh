@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Claude Code SessionStart hook：输出 L0 地图、当前项目 L1 索引和积压数量。
+# Claude Code/Codex SessionStart hook：输出 L0 地图、当前项目 L1 索引和积压数量。
 set -u
 
 V="$(cat "$HOME/.lifeforce-vault" 2>/dev/null || true)"

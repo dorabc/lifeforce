@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Claude Code Stop hook：只追加 session 指针，不解析 transcript，也不生成笔记。
+# Claude Code/Codex Stop hook：只追加 session 指针，不解析 transcript，也不生成笔记。
 set -u
 
 V="$(cd -- "$(dirname -- "$0")/.." && pwd)"
@@ -23,9 +23,9 @@ except Exception:
 record = {
     "ts": timestamp,
     "tool": tool,
-    "cwd": payload.get("cwd", ""),
-    "session": payload.get("session_id", ""),
-    "transcript": payload.get("transcript_path", ""),
+    "cwd": payload.get("cwd") or payload.get("working_directory", ""),
+    "session": payload.get("session_id") or payload.get("thread_id") or payload.get("conversation_id", ""),
+    "transcript": payload.get("transcript_path") or payload.get("agent_transcript_path", ""),
     "done": False,
 }
 try:

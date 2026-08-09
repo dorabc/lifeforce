@@ -2,7 +2,7 @@
 
 跨 AI 共用的个人项目经验库 skill。它把可复用的运维、排障、写作和编码结论保存到 Obsidian vault，并用两级索引实现懒加载：session 开始只看地图和当前项目摘要，真正需要时再打开具体笔记。
 
-它不依赖向量数据库或在线服务：Markdown 保存内容，`reindex.py` 生成导航，`rg` 负责兜底检索。Claude Code 可以自动注入上下文和记录 session 指针；Codex、Gemini CLI、Grok 或网页端可以共用同一份 vault，但没有统一的 session hook 时应显式调用。
+它不依赖向量数据库或在线服务：Markdown 保存内容，`reindex.py` 生成导航，`rg` 负责兜底检索。Claude Code 和 Codex 安装后可以自动注入上下文、记录 session 指针；Gemini CLI、Grok 或网页端可以共用同一份 vault，但没有统一的 session hook 时应显式调用。
 
 ## 安装
 
@@ -17,10 +17,10 @@ bash install.sh "/你的/Obsidian/vault"
 vault 路径必须由安装命令传入，安装器不会写死路径。它会：
 
 1. 把规范化后的 vault 绝对路径写入 `~/.lifeforce-vault`。
-2. 安装 `.lifeforce/skill`、`reindex.py`、`session-start.sh`、`capture.sh` 和 Codex 历史指针脚本。
+2. 安装 `.lifeforce/skill`、索引脚本、Claude/Codex lifecycle hook 和 Codex 历史指针脚本。
 3. 创建 `projects/` 并重建初始 `MAP.md`。
 4. 把 skill 链接到 `~/.claude/skills/lifeforce`、`~/.codex/skills/lifeforce` 和 `~/.gemini/skills/lifeforce`。
-5. 默认向 `~/.claude/settings.json` 幂等追加 SessionStart 和 Stop hook。
+5. 默认向 `~/.claude/settings.json` 和 `~/.codex/hooks.json` 幂等追加 SessionStart 和 Stop hook。
 
 不想让安装器修改 Claude 配置时：
 
@@ -28,11 +28,17 @@ vault 路径必须由安装命令传入，安装器不会写死路径。它会�
 bash install.sh "/你的/Obsidian/vault" --no-claude-hooks
 ```
 
+只关闭 Codex hook：
+
+```bash
+bash install.sh "/你的/Obsidian/vault" --no-codex-hooks
+```
+
 已有同名目录或指向其他位置的软链接时，安装器会跳过并提示，不会覆盖它。重新运行安装命令可以更新 vault 中的运行文件和 skill。
 
 ## 使用
 
-在任意项目目录中开始工作前，显式调用：
+安装了 Claude/Codex hook 后，在任意项目目录开新 session 会自动注入 `MAP.md`、匹配到的项目 `_index.md` 和待沉淀数量，不需要再手动执行无参数 `/lifeforce`。仍可显式调用：
 
 ```text
 /lifeforce
@@ -47,18 +53,18 @@ bash install.sh "/你的/Obsidian/vault" --no-claude-hooks
 /lifeforce daily            # 处理之前积压的 session 流水
 ```
 
-安装了 Claude hooks 后，SessionStart 会自动输出 `MAP.md`、匹配到的项目 `_index.md` 和待沉淀数量；Stop hook 只追加 cwd、session id、transcript 路径等指针，不会自动生成低价值笔记。完成有价值的工作后仍建议显式执行 `/lifeforce save`。
+`find` 是按关键词打开具体经验的主动检索，不能仅靠启动索引替代。Claude/Codex 的 Stop hook 会自动追加 cwd、session id、transcript 路径等指针；这相当于自动收集待归档流水，但不会直接把整段对话写成笔记。完成有价值的工作后，AI 会在最终回复前按 skill 和项目规则自动判断并执行 `$lifeforce save`，不需要用户额外输入 `save`；必要时仍可显式执行。这样可以避免把密码、token、个人查询或一次性过程写入经验库。
 
 ### 归档 Codex 历史会话
 
-Codex 的本地 transcript 在 `~/.codex/sessions/`，与 Claude 的 `~/.claude/projects/` 不是同一种存储。当前版本没有给 Codex 自动追加 Stop hook，因此批量处理历史会话时先用只读脚本列出目标工作目录的 session 指针：
+Codex 的本地 transcript 在 `~/.codex/sessions/`，与 Claude 的 `~/.claude/projects/` 不是同一种存储。新安装的 Codex session 会由 Stop hook 自动留下指针；已有历史会话不会重新触发 hook，批量处理它们时用只读脚本列出目标工作目录的 session 指针：
 
 ```bash
 V="$(cat ~/.lifeforce-vault)"
 python3 "$V/.lifeforce/codex-sessions.py" "/path/to/project"
 ```
 
-脚本只输出时间、session id、cwd、来源和 transcript 路径，不打印会话正文。由 AI 按需读取相关 transcript，按 `/lifeforce save` 的规则合并到现有笔记，排除密码、token、cookie、个人查询和一次性业务数据，最后运行 `reindex.py`。这条路径与 Claude 的自动 hook 是两种入口，但落到同一个 vault。
+脚本只输出时间、session id、cwd、来源和 transcript 路径，不打印会话正文。由 AI 按需读取相关 transcript，按 `/lifeforce save` 的规则合并到现有笔记，排除密码、token、cookie、个人查询和一次性业务数据，最后运行 `reindex.py`。这条路径与 Claude/Codex 的自动 hook 落到同一个 vault。
 
 ## 在其他项目中使用
 
@@ -71,11 +77,11 @@ python3 "$V/.lifeforce/codex-sessions.py" "/path/to/project"
   ```json
   {
     "oa": ["/work/oa-backend", "oa-backend"],
-    "写作": ["/Users/me/notes/writing"]
+    "写作": ["/work/notes/writing"]
   }
   ```
 
-如果希望 Codex 或 Gemini 每次都自动执行入口，在各自项目的 `AGENTS.md` 或 `GEMINI.md` 加：
+如果关闭了 Codex hook，或使用没有 lifecycle hook 的 Gemini，在各自项目的 `AGENTS.md` 或 `GEMINI.md` 加：
 
 ```markdown
 开始任务前使用 `$lifeforce` 加载当前项目的相关经验；完成后按需使用 `$lifeforce save` 沉淀可复用结论。
@@ -99,6 +105,8 @@ vault/
     ├── reindex.py
     ├── session-start.sh
     ├── capture.sh
+    ├── codex-session-start.sh
+    ├── codex-stop.sh
     ├── codex-sessions.py
     └── inbox.jsonl                # append-only session 指针
 ```
@@ -134,10 +142,13 @@ python3 "$V/.lifeforce/reindex.py"
 skill/SKILL.md                    # 实际给 AI 读取的 skill
 skill/agents/openai.yaml          # Codex UI 元数据
 scripts/reindex.py                # vault 运行时脚本
-scripts/session-start.sh          # Claude SessionStart hook
-scripts/capture.sh                # Claude Stop hook
+scripts/session-start.sh          # 生成共享的 SessionStart 上下文
+scripts/codex-session-start.sh    # Codex SessionStart JSON 包装器
+scripts/codex-stop.sh             # Codex Stop hook 包装器
+scripts/capture.sh                # Claude/Codex Stop 指针采集
 scripts/codex-sessions.py         # 列出 Codex 历史 session 指针
 scripts/configure_claude_hooks.py # 幂等合并 settings.json
+scripts/configure_codex_hooks.py  # 幂等合并 Codex hooks.json
 install.sh                        # 安装入口
 ```
 
@@ -151,4 +162,4 @@ bash -n install.sh scripts/*.sh
 python3 /path/to/skill-creator/scripts/quick_validate.py skill
 ```
 
-安装器只会修改用户明确指定的 vault、`~/.lifeforce-vault`、三个 AI skill 链接和 Claude settings（可用 `--no-claude-hooks` 禁止最后一项）。session transcript 不会被复制到 vault，`inbox.jsonl` 只保存定位它所需的元数据。
+安装器只会修改用户明确指定的 vault、`~/.lifeforce-vault`、三个 AI skill 链接、Claude settings 和 Codex hooks（可分别用 `--no-claude-hooks`、`--no-codex-hooks` 禁止）。session transcript 不会被复制到 vault，`inbox.jsonl` 只保存定位它所需的元数据。

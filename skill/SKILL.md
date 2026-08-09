@@ -1,6 +1,6 @@
 ---
 name: lifeforce
-description: 跨 AI 的个人项目经验库。按当前工作目录加载 Obsidian vault 中的项目索引，按需检索和更新运维、排障、写作、编码经验，并在 session 结束后把可复用结论沉淀为结构化笔记。用户说 /lifeforce、"以前是怎么弄的"、"查一下历史经验"、"记一下这次"、"沉淀"、"归档"，或开始运维、排障、改配置、写代码前需要历史上下文时使用。
+description: 跨 AI 的个人项目经验库。按当前工作目录加载 Obsidian vault 中的项目索引，按需检索和更新运维、排障、写作、编码经验；session 结束前自动判断并沉淀可复用结论。用户说 /lifeforce、"以前是怎么弄的"、"查一下历史经验"、"记一下这次"、"沉淀"、"归档"，或开始运维、排障、改配置、写代码前需要历史上下文时使用。
 ---
 
 # lifeforce — 个人经验库
@@ -18,7 +18,7 @@ V="$(cat ~/.lifeforce-vault 2>/dev/null || true)"
 - `V` 为空或目录不存在：说明未安装。提示用户执行 `bash /path/to/lifeforce/install.sh /path/to/obsidian-vault`，不要猜路径，也不要写死路径。
 - 路径可能含空格和中文，所有 shell 变量都加双引号。
 - 只在 `$V` 下读写经验；不要把 session 原文、密码、token 或业务数据写入 `inbox.jsonl`。
-- Claude Code 安装了 hook 时，session 启动会自动注入地图和当前项目索引；其他 AI 没有统一的本地 hook，仍按本文件的显式流程执行。
+- Claude Code 或 Codex 安装了 hook 时，session 启动会自动注入地图和当前项目索引，session 结束会自动记录待归档指针；其他 AI 没有统一的本地 hook，仍按本文件的显式流程执行。
 
 ## 存储结构与懒加载
 
@@ -34,8 +34,10 @@ $V/
 └── .lifeforce/
     ├── skill/SKILL.md
     ├── reindex.py                  # 从叶子笔记重建索引
-    ├── session-start.sh            # Claude SessionStart hook
-    ├── capture.sh                  # Claude Stop hook
+    ├── session-start.sh            # 生成共享的 SessionStart 上下文
+    ├── capture.sh                  # Claude/Codex Stop 指针脚本
+    ├── codex-session-start.sh      # Codex SessionStart JSON 包装器
+    ├── codex-stop.sh               # Codex Stop 包装器
     ├── codex-sessions.py           # Codex 历史 session 指针脚本
     └── inbox.jsonl                  # 只存 session 指针，append-only
 ```
@@ -139,12 +141,16 @@ hits: 0
 
 读取 `inbox.jsonl` 中 `done:false` 的条目，按项目逐条判断是否值得沉淀。需要上下文时才打开 `transcript` 指向的记录，不要一次性加载全部 session；不值得沉淀的条目标记 `done:true` 并写 `skip` 原因。
 
+Stop hook 自动记录的只是定位 session 的元数据，不等于自动生成经验笔记。是否值得沉淀、如何合并旧结论、哪些内容必须排除，必须经过 `/lifeforce save` 或 `/lifeforce daily` 的语义判断；不得因为 hook 自动触发就把整段 transcript 复制进 vault。
+
+如果本次 session 已经产生非显然、可复用的结论，或用户明确纠正了旧做法，AI 不要等待用户输入 `save`；在最终回复前主动执行 `$lifeforce save`。如果没有可复用结论，不创建空笔记；由 Stop hook 留下指针，后续 `daily` 再标记为 `skip` 即可。
+
 ## 触发与跨 AI 使用
 
 - **Claude Code**：安装器会把 skill 链接到 `~/.claude/skills/lifeforce`，并默认追加 SessionStart/Stop hook。可直接说 `/lifeforce`、`/lifeforce find 关键词`、`/lifeforce save` 或 `/lifeforce daily`。
-- **Codex**：安装器链接到 `~/.codex/skills/lifeforce`。可显式说“使用 lifeforce 查一下历史经验”或调用 `$lifeforce`；需要自动入口时，在项目的 `AGENTS.md` 加一行“开始任务前使用 `$lifeforce` 加载相关经验，完成后按需 `$lifeforce save`”。
+- **Codex**：安装器链接到 `~/.codex/skills/lifeforce`，并默认把 hook 幂等写入 `~/.codex/hooks.json`。新 session 会自动加载 `MAP.md` 和当前项目 `_index.md`，Stop 会自动留下 session 指针；不需要手动调用无参数 `$lifeforce`。需要查具体主题时调用 `$lifeforce` 或说“使用 lifeforce 查一下历史经验”；完成有价值的工作后按需 `$lifeforce save`。如果用 `--no-codex-hooks`，再在项目 `AGENTS.md` 中补充启动和保存约定。
 - **Codex 历史会话**：Codex transcript 通常在 `~/.codex/sessions/`，不是 Claude 的项目目录。批量处理某个项目时先运行 `python3 "$V/.lifeforce/codex-sessions.py" "/path/to/project"`；它只列出 session 指针，不打印正文。按需读取相关 transcript，去重后执行 `/lifeforce save`，不要把原始 transcript 复制到 vault。
 - **Gemini CLI**：安装器链接到 `~/.gemini/skills/lifeforce`；在 `GEMINI.md` 加同样的入口说明即可。没有 hook 的环境不能承诺 session 自动执行。
 - **Grok 或网页端**：没有统一的本地 skill/hook 目录，复制本文件内容或让其按 README 的动作流程操作；仍然可以共用同一个 vault。
 
-只有 Claude Code 的 hook 能做到真正的 session 自动注入和结束流水记录；其他 AI 的显式调用是可靠路径。hook 只记录 cwd、session id 和 transcript 路径，不自动生成低价值笔记。
+Claude Code 和 Codex 的 hook 能做到 session 自动注入和结束流水记录；其他 AI 的显式调用是可靠路径。hook 只记录 cwd、session id 和 transcript 路径，不自动生成低价值笔记。

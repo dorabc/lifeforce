@@ -5,13 +5,13 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 用法：
-  bash install.sh /path/to/obsidian-vault [--no-claude-hooks]
+  bash install.sh /path/to/obsidian-vault [--no-claude-hooks] [--no-codex-hooks]
 
 安装内容：
   - 把 vault 路径写入 ~/.lifeforce-vault
-  - 安装 .lifeforce/skill、reindex.py、两个 Claude hook 和 Codex 历史指针脚本
+  - 安装 .lifeforce/skill、reindex.py、Claude/Codex lifecycle hook 和 Codex 历史指针脚本
   - 链接到 ~/.claude/skills、~/.codex/skills、~/.gemini/skills
-  - 默认幂等追加 Claude SessionStart/Stop hook
+  - 默认幂等追加 Claude 和 Codex 的 SessionStart/Stop hook
 EOF
 }
 
@@ -23,10 +23,14 @@ fi
 VAULT_ARG="$1"
 shift
 CLAUDE_HOOKS=1
+CODEX_HOOKS=1
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --no-claude-hooks)
       CLAUDE_HOOKS=0
+      ;;
+    --no-codex-hooks)
+      CODEX_HOOKS=0
       ;;
     -h|--help)
       usage
@@ -49,7 +53,7 @@ if [ ! -d "$VAULT_ARG" ]; then
 fi
 VAULT="$(cd -- "$VAULT_ARG" && pwd -P)"
 
-for required in "$REPO_DIR/skill/SKILL.md" "$REPO_DIR/scripts/reindex.py" "$REPO_DIR/scripts/capture.sh" "$REPO_DIR/scripts/session-start.sh" "$REPO_DIR/scripts/codex-sessions.py"; do
+for required in "$REPO_DIR/skill/SKILL.md" "$REPO_DIR/scripts/reindex.py" "$REPO_DIR/scripts/capture.sh" "$REPO_DIR/scripts/session-start.sh" "$REPO_DIR/scripts/codex-session-start.sh" "$REPO_DIR/scripts/codex-stop.sh" "$REPO_DIR/scripts/codex-sessions.py" "$REPO_DIR/scripts/configure_codex_hooks.py"; do
   if [ ! -f "$required" ]; then
     echo "安装包缺少文件：$required" >&2
     exit 1
@@ -63,8 +67,10 @@ cp -R "$REPO_DIR/skill/." "$SKILL_DIR/"
 cp "$REPO_DIR/scripts/reindex.py" "$RUNTIME/reindex.py"
 cp "$REPO_DIR/scripts/capture.sh" "$RUNTIME/capture.sh"
 cp "$REPO_DIR/scripts/session-start.sh" "$RUNTIME/session-start.sh"
+cp "$REPO_DIR/scripts/codex-session-start.sh" "$RUNTIME/codex-session-start.sh"
+cp "$REPO_DIR/scripts/codex-stop.sh" "$RUNTIME/codex-stop.sh"
 cp "$REPO_DIR/scripts/codex-sessions.py" "$RUNTIME/codex-sessions.py"
-chmod +x "$RUNTIME/reindex.py" "$RUNTIME/capture.sh" "$RUNTIME/session-start.sh" "$RUNTIME/codex-sessions.py"
+chmod +x "$RUNTIME/reindex.py" "$RUNTIME/capture.sh" "$RUNTIME/session-start.sh" "$RUNTIME/codex-session-start.sh" "$RUNTIME/codex-stop.sh" "$RUNTIME/codex-sessions.py"
 
 ORIGINAL_UMASK="$(umask)"
 umask 077
@@ -102,9 +108,17 @@ if [ "$CLAUDE_HOOKS" -eq 1 ]; then
     --capture "$RUNTIME/capture.sh"
 fi
 
+if [ "$CODEX_HOOKS" -eq 1 ]; then
+  python3 "$REPO_DIR/scripts/configure_codex_hooks.py" \
+    --hooks "$HOME_DIR/.codex/hooks.json" \
+    --session-start "$RUNTIME/codex-session-start.sh" \
+    --capture "$RUNTIME/codex-stop.sh"
+fi
+
 cat <<EOF
 
 lifeforce 已安装。
 vault：$VAULT
 显式使用：/lifeforce、/lifeforce find <关键词>、/lifeforce save、/lifeforce daily
+Codex 默认已配置 SessionStart/Stop hook；如不需要可用 --no-codex-hooks 跳过。
 EOF
