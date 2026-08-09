@@ -35,8 +35,11 @@ $V/
     ├── skill/SKILL.md
     ├── reindex.py                  # 从叶子笔记重建索引
     ├── session-start.sh            # 生成共享的 SessionStart 上下文
+    ├── prompt-context.py           # 按当前用户任务检索经验候选
+    ├── prompt-context.sh           # Claude UserPromptSubmit 包装器
     ├── capture.sh                  # Claude/Codex Stop 指针脚本
     ├── codex-session-start.sh      # Codex SessionStart JSON 包装器
+    ├── codex-prompt-submit.sh      # Codex UserPromptSubmit JSON 包装器
     ├── codex-stop.sh               # Codex Stop 包装器
     ├── codex-sessions.py           # Codex 历史 session 指针脚本
     └── inbox.jsonl                  # 只存 session 指针，append-only
@@ -79,6 +82,15 @@ hits: 0
 
 没有映射时，用当前 cwd 的目录名和 `projects/` 下的项目名做大小写不敏感匹配；优先完整路径段，其次最长子串。仍然匹配不上时，把当前 Git 根目录名作为新项目名；有歧义时再向用户确认。
 
+## 任务复用优先
+
+对查询数据、跨表分析、排障、改配置等非显然任务，先复用历史结论，再补验证：
+
+1. SessionStart 提供当前项目索引；UserPromptSubmit 会按用户任务自动检索当前项目的叶子笔记，并把少量高相关候选注入上下文。
+2. 命中候选后，先读取并采用其中的「结论」「可直接复用结果」「验证」和「陷阱」，不要把同一套表关系或排障路径从零重做；若与用户明确纠正、`AGENTS.md` 或当前实测冲突，以后者为准。
+3. 数据库中的实时数值、当前服务状态和会变化的配置必须重新查询；只重新验证变化部分，除非历史前提已经失效。
+4. 没有命中或验证失败时才完整分析；得到新结论后按 `/lifeforce save` 更新原经验。
+
 ## 四个动作
 
 ### `/lifeforce`（无参数）：加载上下文
@@ -103,6 +115,8 @@ hits: 0
    - 如果新旧做法只在不同前提下分别成立，必须把适用条件写清；如果条件不明，不要擅自保留旧做法，先标记不确定并请求确认。
 3. 找不到时按下面模板新建。目录不存在就创建，项目目录用解析出的项目名。
 4. 只记录非显然事实、可复用命令/SQL/配置、根因、验证方式和陷阱；不要记录一次性探索、读代码即可知道的内容或秘密。
+   - 如果本次产出了跨表分析、最终查询结果或报告口径，必须保存可复用的表关系、SQL、筛选条件、结论和验证时间。
+   - 对员工、客户等敏感数据，只保存查询方法和字段语义，不保存姓名、工号、邮箱、真实结果行或其他个人数据。
 5. 执行 `python3 "$V/.lifeforce/reindex.py"`。
 6. 将本次对应的 `inbox.jsonl` 条目更新为 `done:true`。不要重写其他条目；处理并发时保持 JSONL 一行一条。
 
@@ -120,6 +134,9 @@ hits: 0
 ---
 
 # 查询员工信息
+
+## 可直接复用结果
+<下次同类任务可以直接采用的最终结论或报告口径；实时数据只保存查询定义，不保存个人结果行>
 
 ## 结论（可直接复用）
 <命令、SQL、配置或操作步骤>
@@ -147,8 +164,8 @@ Stop hook 自动记录的只是定位 session 的元数据，不等于自动生�
 
 ## 触发与跨 AI 使用
 
-- **Claude Code**：安装器会把 skill 链接到 `~/.claude/skills/lifeforce`，并默认追加 SessionStart/Stop hook。可直接说 `/lifeforce`、`/lifeforce find 关键词`、`/lifeforce save` 或 `/lifeforce daily`。
-- **Codex**：安装器链接到 `~/.codex/skills/lifeforce`，并默认把 hook 幂等写入 `~/.codex/hooks.json`。新 session 会自动加载 `MAP.md` 和当前项目 `_index.md`，Stop 会自动留下 session 指针；不需要手动调用无参数 `$lifeforce`。需要查具体主题时调用 `$lifeforce` 或说“使用 lifeforce 查一下历史经验”；完成有价值的工作后按需 `$lifeforce save`。如果用 `--no-codex-hooks`，再在项目 `AGENTS.md` 中补充启动和保存约定。
+- **Claude Code**：安装器会把 skill 链接到 `~/.claude/skills/lifeforce`，并默认追加 SessionStart/UserPromptSubmit/Stop hook。启动自动加载索引，任务提交时自动检索相关叶子笔记；仍可直接说 `/lifeforce find 关键词` 做更宽的检索。
+- **Codex**：安装器链接到 `~/.codex/skills/lifeforce`，并默认把 SessionStart/UserPromptSubmit/Stop hook 幂等写入 `~/.codex/hooks.json`。新 session 自动加载索引，每个用户任务自动检索相关经验，Stop 自动留下 session 指针；不需要手动调用无参数 `$lifeforce`。需要查具体主题时调用 `$lifeforce` 做更宽的检索；完成有价值的工作后按需 `$lifeforce save`。如果用 `--no-codex-hooks`，再在项目 `AGENTS.md` 中补充启动和保存约定。
 - **Codex 历史会话**：Codex transcript 通常在 `~/.codex/sessions/`，不是 Claude 的项目目录。批量处理某个项目时先运行 `python3 "$V/.lifeforce/codex-sessions.py" "/path/to/project"`；它只列出 session 指针，不打印正文。按需读取相关 transcript，去重后执行 `/lifeforce save`，不要把原始 transcript 复制到 vault。
 - **Gemini CLI**：安装器链接到 `~/.gemini/skills/lifeforce`；在 `GEMINI.md` 加同样的入口说明即可。没有 hook 的环境不能承诺 session 自动执行。
 - **Grok 或网页端**：没有统一的本地 skill/hook 目录，复制本文件内容或让其按 README 的动作流程操作；仍然可以共用同一个 vault。

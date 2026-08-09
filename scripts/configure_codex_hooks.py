@@ -56,6 +56,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--hooks", required=True, type=Path)
     parser.add_argument("--session-start", required=True, type=Path)
+    parser.add_argument("--prompt-context", required=True, type=Path)
     parser.add_argument("--capture", required=True, type=Path)
     args = parser.parse_args()
 
@@ -92,6 +93,15 @@ def main() -> None:
         status_message="Capturing lifeforce session...",
     ):
         changed.append("Stop")
+    if add_command_hook(
+        settings,
+        "UserPromptSubmit",
+        command(args.prompt_context),
+        None,
+        timeout=5,
+        status_message="Finding reusable lifeforce context...",
+    ):
+        changed.append("UserPromptSubmit")
 
     if not changed:
         print("Codex hooks 已存在")

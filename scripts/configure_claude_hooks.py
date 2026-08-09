@@ -42,6 +42,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--settings", required=True, type=Path)
     parser.add_argument("--session-start", required=True, type=Path)
+    parser.add_argument("--prompt-context", required=True, type=Path)
     parser.add_argument("--capture", required=True, type=Path)
     args = parser.parse_args()
 
@@ -62,6 +63,8 @@ def main() -> None:
     changed = []
     if add_command_hook(settings, "SessionStart", command(args.session_start), ""):
         changed.append("SessionStart")
+    if add_command_hook(settings, "UserPromptSubmit", command(args.prompt_context), ""):
+        changed.append("UserPromptSubmit")
     if add_command_hook(settings, "Stop", command(args.capture), None):
         changed.append("Stop")
 

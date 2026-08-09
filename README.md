@@ -20,7 +20,7 @@ vault 路径必须由安装命令传入，安装器不会写死路径。它会�
 2. 安装 `.lifeforce/skill`、索引脚本、Claude/Codex lifecycle hook 和 Codex 历史指针脚本。
 3. 创建 `projects/` 并重建初始 `MAP.md`。
 4. 把 skill 链接到 `~/.claude/skills/lifeforce`、`~/.codex/skills/lifeforce` 和 `~/.gemini/skills/lifeforce`。
-5. 默认向 `~/.claude/settings.json` 和 `~/.codex/hooks.json` 幂等追加 SessionStart 和 Stop hook。
+5. 默认向 `~/.claude/settings.json` 和 `~/.codex/hooks.json` 幂等追加 SessionStart、UserPromptSubmit 和 Stop hook。
 
 不想让安装器修改 Claude 配置时：
 
@@ -38,7 +38,7 @@ bash install.sh "/你的/Obsidian/vault" --no-codex-hooks
 
 ## 使用
 
-安装了 Claude/Codex hook 后，在任意项目目录开新 session 会自动注入 `MAP.md`、匹配到的项目 `_index.md` 和待沉淀数量，不需要再手动执行无参数 `/lifeforce`。仍可显式调用：
+安装了 Claude/Codex hook 后，在任意项目目录开新 session 会自动注入 `MAP.md`、匹配到的项目 `_index.md` 和待沉淀数量；每次提交任务时还会自动检索当前项目的相关叶子笔记，不需要再手动执行无参数 `/lifeforce`。仍可显式调用：
 
 ```text
 /lifeforce
@@ -53,7 +53,7 @@ bash install.sh "/你的/Obsidian/vault" --no-codex-hooks
 /lifeforce daily            # 处理之前积压的 session 流水
 ```
 
-`find` 是按关键词打开具体经验的主动检索，不能仅靠启动索引替代。Claude/Codex 的 Stop hook 会自动追加 cwd、session id、transcript 路径等指针；这相当于自动收集待归档流水，但不会直接把整段对话写成笔记。完成有价值的工作后，AI 会在最终回复前按 skill 和项目规则自动判断并执行 `$lifeforce save`，不需要用户额外输入 `save`；必要时仍可显式执行。这样可以避免把密码、token、个人查询或一次性过程写入经验库。
+自动检索会把高相关经验作为已知基线注入上下文；对实时数据库只重新查询变化值，不会重复从零分析整套表关系。`find` 仍用于扩大检索范围。Claude/Codex 的 Stop hook 会自动追加 cwd、session id、transcript 路径等指针；这相当于自动收集待归档流水，但不会直接把整段对话写成笔记。完成有价值的工作后，AI 会在最终回复前按 skill 和项目规则自动判断并执行 `$lifeforce save`，不需要用户额外输入 `save`；必要时仍可显式执行。这样可以避免把密码、token、个人查询或一次性过程写入经验库。
 
 ### 归档 Codex 历史会话
 
@@ -104,8 +104,11 @@ vault/
     ├── skill/SKILL.md
     ├── reindex.py
     ├── session-start.sh
+    ├── prompt-context.py
+    ├── prompt-context.sh
     ├── capture.sh
     ├── codex-session-start.sh
+    ├── codex-prompt-submit.sh
     ├── codex-stop.sh
     ├── codex-sessions.py
     └── inbox.jsonl                # append-only session 指针
@@ -143,7 +146,10 @@ skill/SKILL.md                    # 实际给 AI 读取的 skill
 skill/agents/openai.yaml          # Codex UI 元数据
 scripts/reindex.py                # vault 运行时脚本
 scripts/session-start.sh          # 生成共享的 SessionStart 上下文
+scripts/prompt-context.py         # 按当前用户任务检索经验候选
+scripts/prompt-context.sh         # Claude UserPromptSubmit 包装器
 scripts/codex-session-start.sh    # Codex SessionStart JSON 包装器
+scripts/codex-prompt-submit.sh    # Codex UserPromptSubmit JSON 包装器
 scripts/codex-stop.sh             # Codex Stop hook 包装器
 scripts/capture.sh                # Claude/Codex Stop 指针采集
 scripts/codex-sessions.py         # 列出 Codex 历史 session 指针

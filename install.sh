@@ -9,9 +9,9 @@ usage() {
 
 安装内容：
   - 把 vault 路径写入 ~/.lifeforce-vault
-  - 安装 .lifeforce/skill、reindex.py、Claude/Codex lifecycle hook 和 Codex 历史指针脚本
+  - 安装 .lifeforce/skill、索引脚本、Claude/Codex lifecycle hook 和 Codex 历史指针脚本
   - 链接到 ~/.claude/skills、~/.codex/skills、~/.gemini/skills
-  - 默认幂等追加 Claude 和 Codex 的 SessionStart/Stop hook
+  - 默认幂等追加 Claude 和 Codex 的 SessionStart/UserPromptSubmit/Stop hook
 EOF
 }
 
@@ -53,7 +53,7 @@ if [ ! -d "$VAULT_ARG" ]; then
 fi
 VAULT="$(cd -- "$VAULT_ARG" && pwd -P)"
 
-for required in "$REPO_DIR/skill/SKILL.md" "$REPO_DIR/scripts/reindex.py" "$REPO_DIR/scripts/capture.sh" "$REPO_DIR/scripts/session-start.sh" "$REPO_DIR/scripts/codex-session-start.sh" "$REPO_DIR/scripts/codex-stop.sh" "$REPO_DIR/scripts/codex-sessions.py" "$REPO_DIR/scripts/configure_codex_hooks.py"; do
+for required in "$REPO_DIR/skill/SKILL.md" "$REPO_DIR/scripts/reindex.py" "$REPO_DIR/scripts/capture.sh" "$REPO_DIR/scripts/session-start.sh" "$REPO_DIR/scripts/prompt-context.py" "$REPO_DIR/scripts/prompt-context.sh" "$REPO_DIR/scripts/codex-session-start.sh" "$REPO_DIR/scripts/codex-prompt-submit.sh" "$REPO_DIR/scripts/codex-stop.sh" "$REPO_DIR/scripts/codex-sessions.py" "$REPO_DIR/scripts/configure_codex_hooks.py"; do
   if [ ! -f "$required" ]; then
     echo "安装包缺少文件：$required" >&2
     exit 1
@@ -67,10 +67,13 @@ cp -R "$REPO_DIR/skill/." "$SKILL_DIR/"
 cp "$REPO_DIR/scripts/reindex.py" "$RUNTIME/reindex.py"
 cp "$REPO_DIR/scripts/capture.sh" "$RUNTIME/capture.sh"
 cp "$REPO_DIR/scripts/session-start.sh" "$RUNTIME/session-start.sh"
+cp "$REPO_DIR/scripts/prompt-context.py" "$RUNTIME/prompt-context.py"
+cp "$REPO_DIR/scripts/prompt-context.sh" "$RUNTIME/prompt-context.sh"
 cp "$REPO_DIR/scripts/codex-session-start.sh" "$RUNTIME/codex-session-start.sh"
+cp "$REPO_DIR/scripts/codex-prompt-submit.sh" "$RUNTIME/codex-prompt-submit.sh"
 cp "$REPO_DIR/scripts/codex-stop.sh" "$RUNTIME/codex-stop.sh"
 cp "$REPO_DIR/scripts/codex-sessions.py" "$RUNTIME/codex-sessions.py"
-chmod +x "$RUNTIME/reindex.py" "$RUNTIME/capture.sh" "$RUNTIME/session-start.sh" "$RUNTIME/codex-session-start.sh" "$RUNTIME/codex-stop.sh" "$RUNTIME/codex-sessions.py"
+chmod +x "$RUNTIME/reindex.py" "$RUNTIME/capture.sh" "$RUNTIME/session-start.sh" "$RUNTIME/prompt-context.py" "$RUNTIME/prompt-context.sh" "$RUNTIME/codex-session-start.sh" "$RUNTIME/codex-prompt-submit.sh" "$RUNTIME/codex-stop.sh" "$RUNTIME/codex-sessions.py"
 
 ORIGINAL_UMASK="$(umask)"
 umask 077
@@ -105,6 +108,7 @@ if [ "$CLAUDE_HOOKS" -eq 1 ]; then
   python3 "$REPO_DIR/scripts/configure_claude_hooks.py" \
     --settings "$HOME_DIR/.claude/settings.json" \
     --session-start "$RUNTIME/session-start.sh" \
+    --prompt-context "$RUNTIME/prompt-context.sh" \
     --capture "$RUNTIME/capture.sh"
 fi
 
@@ -112,6 +116,7 @@ if [ "$CODEX_HOOKS" -eq 1 ]; then
   python3 "$REPO_DIR/scripts/configure_codex_hooks.py" \
     --hooks "$HOME_DIR/.codex/hooks.json" \
     --session-start "$RUNTIME/codex-session-start.sh" \
+    --prompt-context "$RUNTIME/codex-prompt-submit.sh" \
     --capture "$RUNTIME/codex-stop.sh"
 fi
 
