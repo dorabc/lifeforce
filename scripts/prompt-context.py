@@ -191,6 +191,12 @@ def main() -> None:
     if not prompt:
         return
     try:
+        backend = (Path.home() / ".lifeforce-backend").read_text(encoding="utf-8").strip()
+    except OSError:
+        backend = ""
+    if backend == "openwiki":
+        return
+    try:
         vault_value = (Path.home() / ".lifeforce-vault").read_text(encoding="utf-8").strip()
     except OSError:
         return

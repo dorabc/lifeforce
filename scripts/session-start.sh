@@ -2,9 +2,13 @@
 # Claude Code/Codex SessionStart hook：输出 L0 地图、当前项目 L1 索引和积压数量。
 set -u
 
-V="$(cat "$HOME/.lifeforce-vault" 2>/dev/null || true)"
-[ -n "$V" ] && [ -d "$V" ] || exit 0
-
+RUNTIME="$(cd -- "$(dirname -- "$0")" && pwd -P)"
+BACKEND="$(cat "$HOME/.lifeforce-backend" 2>/dev/null || true)"
+if [ "$BACKEND" = "openwiki" ]; then
+  V=""
+else
+  V="$(cat "$HOME/.lifeforce-vault" 2>/dev/null || true)"
+fi
 PAYLOAD="$(cat 2>/dev/null || true)"
 CWD="$(printf '%s' "$PAYLOAD" | python3 -c '
 import json
@@ -15,6 +19,11 @@ except Exception:
     print("")
 ' 2>/dev/null || true)"
 [ -n "$CWD" ] || CWD="$(pwd)"
+
+if [ -z "$V" ] || [ ! -d "$V" ]; then
+  python3 "$RUNTIME/openwiki-context.py" --session --cwd "$CWD" 2>/dev/null || true
+  exit 0
+fi
 
 python3 - "$V" "$CWD" <<'PY' 2>/dev/null || exit 0
 import json
@@ -82,5 +91,7 @@ if inbox.exists():
 if pending:
     print(f"\n[lifeforce] 当前项目有 {pending} 条 session 流水待沉淀；需要时执行 /lifeforce daily。")
 PY
+
+python3 "$RUNTIME/openwiki-context.py" --session --cwd "$CWD" 2>/dev/null || true
 
 exit 0

@@ -12,11 +12,17 @@ import tempfile
 from pathlib import Path
 
 
-def command(path: Path) -> str:
-    return f"/bin/bash {shlex.quote(str(path))}"
+def command(path: Path, prefix: str) -> str:
+    return f"{prefix} {shlex.quote(str(path))}"
 
 
-def add_command_hook(settings: dict, event: str, hook_command: str, matcher: str | None) -> bool:
+def add_command_hook(
+    settings: dict,
+    event: str,
+    hook_command: str,
+    matcher: str | None,
+    legacy_command: str | None = None,
+) -> bool:
     hooks = settings.setdefault("hooks", {})
     if not isinstance(hooks, dict):
         raise ValueError("settings.json 的 hooks 必须是对象")
@@ -28,8 +34,13 @@ def add_command_hook(settings: dict, event: str, hook_command: str, matcher: str
         if not isinstance(entry, dict):
             continue
         for item in entry.get("hooks", []):
-            if isinstance(item, dict) and item.get("type") == "command" and item.get("command") == hook_command:
+            if not isinstance(item, dict) or item.get("type") != "command":
+                continue
+            if item.get("command") == hook_command:
                 return False
+            if legacy_command and item.get("command") == legacy_command:
+                item["command"] = hook_command
+                return True
 
     entry = {"hooks": [{"type": "command", "command": hook_command}]}
     if matcher is not None:
@@ -44,6 +55,7 @@ def main() -> None:
     parser.add_argument("--session-start", required=True, type=Path)
     parser.add_argument("--prompt-context", required=True, type=Path)
     parser.add_argument("--capture", required=True, type=Path)
+    parser.add_argument("--command-prefix", default="/bin/bash")
     args = parser.parse_args()
 
     path = args.settings.expanduser()
@@ -61,11 +73,29 @@ def main() -> None:
         mode = 0o600
 
     changed = []
-    if add_command_hook(settings, "SessionStart", command(args.session_start), ""):
+    if add_command_hook(
+        settings,
+        "SessionStart",
+        command(args.session_start, args.command_prefix),
+        "",
+        legacy_command=f"/bin/bash {shlex.quote(str(args.session_start))}",
+    ):
         changed.append("SessionStart")
-    if add_command_hook(settings, "UserPromptSubmit", command(args.prompt_context), ""):
+    if add_command_hook(
+        settings,
+        "UserPromptSubmit",
+        command(args.prompt_context, args.command_prefix),
+        "",
+        legacy_command=f"/bin/bash {shlex.quote(str(args.prompt_context))}",
+    ):
         changed.append("UserPromptSubmit")
-    if add_command_hook(settings, "Stop", command(args.capture), None):
+    if add_command_hook(
+        settings,
+        "Stop",
+        command(args.capture, args.command_prefix),
+        None,
+        legacy_command=f"/bin/bash {shlex.quote(str(args.capture))}",
+    ):
         changed.append("Stop")
 
     if not changed:

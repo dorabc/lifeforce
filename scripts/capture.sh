@@ -2,11 +2,11 @@
 # Claude Code/Codex Stop hook：只追加 session 指针，不解析 transcript，也不生成笔记。
 set -u
 
-V="$(cd -- "$(dirname -- "$0")/.." && pwd)"
-INBOX="$V/.lifeforce/inbox.jsonl"
+RUNTIME="$(cd -- "$(dirname -- "$0")" && pwd -P)"
+INBOX="$RUNTIME/inbox.jsonl"
 TOOL="${LIFEFORCE_TOOL:-claude-code}"
 TS="$(date +%Y-%m-%dT%H:%M:%S%z)"
-mkdir -p "$V/.lifeforce"
+mkdir -p "$RUNTIME"
 
 # Hook 失败不能阻塞用户 session；Python 只使用标准库，避免额外安装 jq。
 python3 -c '

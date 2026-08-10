@@ -12,8 +12,8 @@ import tempfile
 from pathlib import Path
 
 
-def command(path: Path) -> str:
-    return f"/bin/bash {shlex.quote(str(path))}"
+def command(path: Path, prefix: str) -> str:
+    return f"{prefix} {shlex.quote(str(path))}"
 
 
 def add_command_hook(
@@ -21,6 +21,7 @@ def add_command_hook(
     event: str,
     hook_command: str,
     matcher: str | None,
+    legacy_command: str | None = None,
     *,
     timeout: int,
     status_message: str,
@@ -36,8 +37,13 @@ def add_command_hook(
         if not isinstance(entry, dict):
             continue
         for item in entry.get("hooks", []):
-            if isinstance(item, dict) and item.get("type") == "command" and item.get("command") == hook_command:
+            if not isinstance(item, dict) or item.get("type") != "command":
+                continue
+            if item.get("command") == hook_command:
                 return False
+            if legacy_command and item.get("command") == legacy_command:
+                item["command"] = hook_command
+                return True
 
     item = {
         "type": "command",
@@ -58,6 +64,7 @@ def main() -> None:
     parser.add_argument("--session-start", required=True, type=Path)
     parser.add_argument("--prompt-context", required=True, type=Path)
     parser.add_argument("--capture", required=True, type=Path)
+    parser.add_argument("--command-prefix", default="/bin/bash")
     args = parser.parse_args()
 
     path = args.hooks.expanduser()
@@ -78,8 +85,9 @@ def main() -> None:
     if add_command_hook(
         settings,
         "SessionStart",
-        command(args.session_start),
+        command(args.session_start, args.command_prefix),
         "startup|resume|clear|compact",
+        legacy_command=f"/bin/bash {shlex.quote(str(args.session_start))}",
         timeout=10,
         status_message="Loading lifeforce context...",
     ):
@@ -87,8 +95,9 @@ def main() -> None:
     if add_command_hook(
         settings,
         "Stop",
-        command(args.capture),
+        command(args.capture, args.command_prefix),
         None,
+        legacy_command=f"/bin/bash {shlex.quote(str(args.capture))}",
         timeout=5,
         status_message="Capturing lifeforce session...",
     ):
@@ -96,8 +105,9 @@ def main() -> None:
     if add_command_hook(
         settings,
         "UserPromptSubmit",
-        command(args.prompt_context),
+        command(args.prompt_context, args.command_prefix),
         None,
+        legacy_command=f"/bin/bash {shlex.quote(str(args.prompt_context))}",
         timeout=5,
         status_message="Finding reusable lifeforce context...",
     ):
